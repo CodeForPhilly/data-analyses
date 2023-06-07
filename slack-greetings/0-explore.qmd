@@ -1,0 +1,67 @@
+---
+jupyter: python3
+---
+
+# My report
+
+I can write markdown
+
+* abc
+* def
+
+```{python}
+import pandas as pd
+from siuba import _, count, filter, mutate, head, separate, distinct, select, group_by, summarize, nest
+
+raw_messages = pd.read_excel("cfp_2203_2305_raw.xlsx")
+```
+
+
+```{python}
+raw_messages >> count(_.message_user)
+
+raw_messages >> count(_.reply_user, sort=True)
+```
+
+
+```{python}
+user_replies = (
+    raw_messages
+    >> filter(_.reply_text.notna())
+    >> mutate(
+        reply_user_name = _.reply_text.str.split(":").str.get(0),
+        reply_id = _.index
+    )
+)
+```
+
+
+```{python}
+languages = ["javascript", "python", "R"]
+topics = ["web development", "fullstack", "full-stack"]
+
+# each row is a word in a reply
+user_reply_words = (
+    user_replies
+    >> mutate(
+        reply_words = _.reply_text.str.replace(".", "").str.lower().str.split(" ")
+    )
+    >> _.explode("reply_words")
+    >> distinct(_.reply_id, _.reply_words, _keep_all=True)
+)
+
+# counts of our topics
+user_reply_words >> count(_.reply_words, sort=True) >> filter(_.reply_words.isin([*languages, *topics]))
+
+# filter to see replies that user or topics
+user_reply_keywords = (user_reply_words
+    >> filter(_.reply_words.isin([*languages, *topics]))
+    >> select(_.reply_id, _.reply_user_name, _.reply_words, _.reply_text)
+)
+```
+
+```{python}
+user_reply_keywords >> group_by(_.reply_user_name) >> summarize(keyword = lambda D: [D.reply_words.tolist()])
+```
+
+
